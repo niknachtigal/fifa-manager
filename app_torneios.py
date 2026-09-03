@@ -6,12 +6,13 @@ import time
 import re
 from supabase import create_client, Client
 
-st.set_page_config(page_title="FIFA Tournaments", page_icon="🏆", layout="wide")
+# Deixa o menu lateral fechado por padrão
+st.set_page_config(page_title="FIFA Tournaments", page_icon="🏆", layout="wide", initial_sidebar_state="collapsed")
 
 # ==============================================================================
 # ⚠️ CONFIGURAÇÕES DA SUA TABELA DE X1
 # ==============================================================================
-NOME_TABELA_X1 = "coloque_aqui_o_nome_da_tabela_x1" # <-- EDITE ESTA LINHA!
+NOME_TABELA_X1 = "partidas" # <-- EDITE ESTA LINHA!
 
 # ==============================================================================
 # ESTÉTICA PRETO FOSCO E MÁGICA DA TABELA CENTRALIZADA
@@ -148,6 +149,17 @@ def formatar_data(data_str):
     except:
         pass
     return data_str
+
+def estilizar_tabela(df):
+    """Função para forçar o alinhamento central em tabelas Pandas"""
+    if df.empty: return df
+    styler = df.style.set_properties(**{'text-align': 'center'})
+    if 'Jogador' in df.columns:
+        styler = styler.set_properties(subset=['Jogador'], **{'text-align': 'left'})
+    styler = styler.set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
+    if '%' in df.columns:
+        styler = styler.format({'%': '{:.1f}%'})
+    return styler
 
 @st.cache_data
 def get_todas_partidas_concluidas():
@@ -803,7 +815,7 @@ with tab_atual:
                 for grupo_nome, df_grupo in tabelas.items():
                     if grupo_nome != "Único": st.markdown(f"#### Grupo {grupo_nome}")
                     df_grupo = df_grupo.set_index('Pos')
-                    st.table(df_grupo.style.format({'%': '{:.1f}%'}))
+                    st.table(estilizar_tabela(df_grupo))
                 
             if ed_atual['formato'].startswith('Grupos'):
                 regras = get_regras_edicao(ed_atual)
@@ -959,7 +971,7 @@ with tab_hist:
             for grupo_nome, df_grupo in tabelas_hist.items():
                 if grupo_nome != "Único": st.markdown(f"#### Grupo {grupo_nome}")
                 df_grupo = df_grupo.set_index('Pos')
-                st.table(df_grupo.style.format({'%': '{:.1f}%'}))
+                st.table(estilizar_tabela(df_grupo))
             
             if ed_hist['formato'].startswith('Grupos'):
                 st.markdown("---")
@@ -967,7 +979,7 @@ with tab_hist:
                 df_geral = calcular_classificacao_geral_edicao(ed_hist['id'])
                 if not df_geral.empty:
                     df_geral = df_geral.set_index('Pos')
-                    st.table(df_geral.style.format({'%': '{:.1f}%'}))
+                    st.table(estilizar_tabela(df_geral))
                 
         with c_jogos_hist:
             st.subheader("📜 Todos os Resultados")
@@ -1106,7 +1118,7 @@ with tab_hall:
         st.info("Nenhuma partida registrada ou torneio finalizado ainda.")
     else:
         df_hall = df_hall.set_index('Pos')
-        st.table(df_hall.style.format({'%': '{:.1f}%'}))
+        st.table(estilizar_tabela(df_hall))
         
         st.markdown("---")
         st.subheader("🏅 Galeria de Campeões (Histórico de Edições)")
@@ -1511,3 +1523,30 @@ if tab_admin:
                     st.success(f"Torneio '{nome_teste}' gerado e finalizado com sucesso! Olhe o Hall da Fama.")
                     time.sleep(2)
                     st.rerun()
+
+        # --- ZONA DE PERIGO ---
+        st.markdown("---")
+        with st.container(border=True):
+            st.subheader("⚠️ Zona de Perigo (Reset de Sistema)")
+            with st.expander("Deseja zerar todo o histórico de torneios?", expanded=False):
+                st.warning("Esta ação vai apagar TODAS as edições, partidas e participantes. O histórico do seu X1 gerado pelos torneios também será apagado. Esta ação é irreversível!")
+                confirmacao = st.checkbox("Sim, eu quero excluir todos os dados de torneios permanentemente.")
+                if st.button("🔴 ZERAR TODO O HISTÓRICO", disabled=not confirmacao, type="primary", use_container_width=True):
+                    # 1. Tenta apagar do X1 primeiro
+                    try:
+                        supabase.table(NOME_TABELA_X1).delete().ilike("versao_jogo", "Torneio:%").execute()
+                    except Exception:
+                        pass
+                    
+                    # 2. Apaga das tabelas de Torneio (Filtrando id >= 0 para forçar a exclusão total no PostgREST)
+                    try:
+                        supabase.table("tour_partidas").delete().gte("id", 0).execute()
+                        supabase.table("tour_participantes").delete().gte("id", 0).execute()
+                        supabase.table("tour_edicoes").delete().gte("id", 0).execute()
+                        
+                        st.cache_data.clear()
+                        st.success("Histórico completamente zerado com sucesso!")
+                        time.sleep(2)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao tentar zerar: {e}")
