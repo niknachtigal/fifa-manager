@@ -29,7 +29,8 @@ st.markdown("""
         div.stButton > button { margin-top: 15px; }
         
         [data-testid="stTable"] table { width: 100%; }
-        [data-testid="stTable"] th, [data-testid="stTable"] td { text-align: center !important; }
+        [data-testid="stTable"] th { text-align: center !important; }
+        [data-testid="stTable"] td { text-align: center !important; }
         [data-testid="stTable"] th:nth-child(2), [data-testid="stTable"] td:nth-child(2) { 
             text-align: left !important; padding-left: 15px !important;
         }
@@ -151,12 +152,18 @@ def formatar_data(data_str):
     return data_str
 
 def estilizar_tabela(df):
-    """Função para forçar o alinhamento central em tabelas Pandas"""
+    """Função para forçar o alinhamento central com 'força bruta' (!important)"""
     if df.empty: return df
-    styler = df.style.set_properties(**{'text-align': 'center'})
+    
+    styler = df.style.set_properties(**{'text-align': 'center !important'})
     if 'Jogador' in df.columns:
-        styler = styler.set_properties(subset=['Jogador'], **{'text-align': 'left'})
-    styler = styler.set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
+        styler = styler.set_properties(subset=['Jogador'], **{'text-align': 'left !important'})
+        
+    styler = styler.set_table_styles([
+        dict(selector='th', props=[('text-align', 'center !important')]),
+        dict(selector='td', props=[('text-align', 'center !important')])
+    ])
+    
     if '%' in df.columns:
         styler = styler.format({'%': '{:.1f}%'})
     return styler
@@ -1443,7 +1450,7 @@ if tab_admin:
                                         time.sleep(1)
                                         st.rerun()
 
-        # --- MÓDULO DE TESTE EXPRESSO ---
+        # --- MÓDULO DE TESTE EXPRESSO E ZONA DE PERIGO ---
         st.markdown("---")
         with st.container(border=True):
             st.subheader("5️⃣ Ferramentas de Teste (Stress)")
