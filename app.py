@@ -12,7 +12,7 @@ st.set_page_config(page_title="FIFA Tournaments", page_icon="🏆", layout="wide
 # ==============================================================================
 # ⚠️ CONFIGURAÇÕES DA SUA TABELA DE X1
 # ==============================================================================
-NOME_TABELA_X1 = "partidas" # <-- EDITE ESTA LINHA!
+NOME_TABELA_X1 = "partidas"
 
 # ==============================================================================
 # ESTÉTICA PRETO FOSCO E MÁGICA DA TABELA CENTRALIZADA
@@ -46,16 +46,19 @@ if "autenticado" not in st.session_state:
 with st.sidebar:
     if not st.session_state["autenticado"]:
         with st.expander("🔐 Acesso Restrito", expanded=False):
-            senha_digitada = st.text_input("Senha", type="password", placeholder="Digite a senha...", label_visibility="collapsed")
-            if st.button("Entrar", use_container_width=True):
-                senha_correta = st.secrets.get("APP_PASSWORD", "admin123") 
-                if senha_digitada == senha_correta:
-                    st.session_state["autenticado"] = True
-                    st.toast("Login realizado com sucesso!", icon="🔓")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    st.error("Senha Incorreta!")
+            with st.form("form_login_admin", border=False):
+                senha_digitada = st.text_input("Senha", type="password", placeholder="Digite a senha...", label_visibility="collapsed")
+                btn_entrar = st.form_submit_button("Entrar", use_container_width=True)
+                
+                if btn_entrar:
+                    senha_correta = st.secrets.get("APP_PASSWORD", "admin123") 
+                    if senha_digitada == senha_correta:
+                        st.session_state["autenticado"] = True
+                        st.toast("Login realizado com sucesso!", icon="🔓")
+                        time.sleep(1)
+                        st.rerun()
+                    else:
+                        st.error("Senha Incorreta!")
     else:
         with st.expander("🔐 Acesso Restrito", expanded=True):
             st.success("Modo Edição Ativado! 🟢")
@@ -295,13 +298,20 @@ def salvar_placar(partida_id, t_casa, g_casa, t_fora, g_fora, foi_pen, venc_pen)
         p = res_p.data[0]
         jogadores = [p['jogador_casa'], p['jogador_fora']]
         
-        if "Nikolas" in jogadores and "Rodrigo" in jogadores:
+        # Filtro de segurança contra erros de digitação (letras maiúsculas ou espaços extras)
+        jogadores_limpos = [j.strip().lower() for j in jogadores]
+        
+        if "nikolas" in jogadores_limpos and "rodrigo" in jogadores_limpos:
             res_ed = supabase.table("tour_edicoes").select("nome").eq("id", p['torneio_id']).execute()
             nome_camp = res_ed.data[0]['nome'] if res_ed.data else "Campeonato"
             
-            if "Simulada" not in nome_camp:
+            if "Simulada" not in nome_camp and "simulada" not in nome_camp.lower():
                 origem_detalhada = f"Torneio: {nome_camp} ({p['fase']})"
                 data_atual = time.strftime("%Y-%m-%d")
+                
+                # TRADUÇÃO EXCLUSIVA PARA O IDIOMA DO SEU X1
+                foi_pen_texto = "Sim" if foi_pen else "Não"
+                venc_pen_texto = venc_pen if venc_pen else ""
                 
                 dados_x1 = {
                     "versao_jogo": origem_detalhada, 
@@ -312,12 +322,14 @@ def salvar_placar(partida_id, t_casa, g_casa, t_fora, g_fora, foi_pen, venc_pen)
                     "jogador_fora": p['jogador_fora'],
                     "time_fora": t_fora,
                     "gols_fora": g_fora,
-                    "foi_penaltis": foi_pen,
-                    "vencedor_penaltis": venc_pen
+                    "foi_penaltis": foi_pen_texto,
+                    "vencedor_penaltis": venc_pen_texto
                 }
                 try:
                     supabase.table(NOME_TABELA_X1).insert(dados_x1).execute()
+                    st.toast("⚔️ Resultado espelhado no X1 com sucesso!", icon="🔥")
                 except Exception as e:
+                    st.error(f"Erro ao salvar no X1: {e}")
                     print(f"Erro ao salvar no X1: {e}")
     st.cache_data.clear()
 
@@ -1545,7 +1557,7 @@ if tab_admin:
                     except Exception:
                         pass
                     
-                    # 2. Apaga das tabelas de Torneio (Filtrando id >= 0 para forçar a exclusão total no PostgREST)
+                    # 2. Apaga das tabelas de Torneio
                     try:
                         supabase.table("tour_partidas").delete().gte("id", 0).execute()
                         supabase.table("tour_participantes").delete().gte("id", 0).execute()
